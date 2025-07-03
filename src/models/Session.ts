@@ -5,7 +5,7 @@ export interface ISession extends Document {
   gakusei: mongoose.Types.ObjectId;
   sessionRequestId?: mongoose.Types.ObjectId;
   chatRoomId?: mongoose.Types.ObjectId;
-  startTime: string;
+  startTime: Date; // Changed from string to Date for easier querying and comparison
   status: "upcoming" | "in-progress" | "completed";
   bothMarkedComplete: {
     sensei: boolean;
@@ -21,7 +21,7 @@ const SessionSchema = new Schema<ISession>(
     gakusei: { type: Schema.Types.ObjectId, ref: "User", required: true },
     sessionRequestId: { type: Schema.Types.ObjectId, ref: "SessionRequest" },
     chatRoomId: { type: Schema.Types.ObjectId, ref: "ChatRoom" },
-    startTime: { type: String, required: true },
+    startTime: { type: Date, required: true },
     status: {
       type: String,
       enum: ["upcoming", "in-progress", "completed"],

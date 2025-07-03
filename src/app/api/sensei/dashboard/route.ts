@@ -1,4 +1,4 @@
-// GET upcoming sessions + session requests for Sensei
+// app/api/sensei/dashboard/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
@@ -8,28 +8,29 @@ import Session from "@/models/Session";
 
 export async function GET(req: NextRequest) {
   await dbConnect();
-
   const user = await getUserFromRequest(req, ["sensei"]);
 
   try {
+    const now = new Date();
+
     const pendingRequests = await SessionRequest.find({
       sensei: user._id,
       status: "pending",
     }).populate("gakusei");
 
-    const acceptedSessions = await Session.find({
+    const upcomingSessions = await Session.find({
       sensei: user._id,
-      date: { $gte: new Date() },
+      startTime: { $gte: now },
     }).populate("gakusei");
 
     const pastSessions = await Session.find({
       sensei: user._id,
-      date: { $lt: new Date() },
+      startTime: { $lt: now },
     }).populate("gakusei");
 
     return NextResponse.json({
       pendingRequests,
-      upcomingSessions: acceptedSessions,
+      upcomingSessions,
       pastSessions,
     });
   } catch (err) {

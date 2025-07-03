@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
-import User from "@/models/User"; // Update with your actual model path
+import User from "@/models/User";
 import mongoose from "mongoose";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest) {
   await dbConnect();
 
-  const { id } = params;
+  const urlParts = req.nextUrl.pathname.split("/");
+  const id = urlParts[urlParts.length - 1];
 
-  // Check for valid MongoDB ObjectId
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ error: "Invalid Sensei ID." }, { status: 400 });
   }
 
   try {
-    const sensei = await User.findById(id);
-
+    const sensei = await User.findById(id).select("-password");
     if (!sensei) {
       return NextResponse.json({ error: "Sensei not found." }, { status: 404 });
     }

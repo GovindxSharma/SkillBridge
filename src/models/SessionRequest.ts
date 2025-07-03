@@ -1,13 +1,13 @@
-// models/SessionRequest.ts
-
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface ISessionRequest extends Document {
-  sensei: mongoose.Schema.Types.ObjectId;
-  gakusei: mongoose.Schema.Types.ObjectId;
+  sensei: mongoose.Types.ObjectId;
+  gakusei: mongoose.Types.ObjectId;
   message: string;
   preferredDate: Date;
   status: "pending" | "accepted" | "rejected";
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const sessionRequestSchema = new Schema<ISessionRequest>(

@@ -7,9 +7,9 @@ import useAuthUser from "@/hooks/useAuthUser";
 export default function SenseiDashboard() {
   const { user, loading } = useAuthUser();
   const router = useRouter();
-  const [pending, setPending] = useState([]);
-  const [upcoming, setUpcoming] = useState([]);
-  const [history, setHistory] = useState([]);
+
+  const [sessions, setSessions] = useState([]);
+  const [reviews, setReviews] = useState([]);
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "sensei")) {
@@ -18,83 +18,91 @@ export default function SenseiDashboard() {
 
     const fetchData = async () => {
       try {
-        const res = await fetch("/api/sensei/dashboard");
-        const data = await res.json();
-        setPending(data.pendingRequests || []);
-        setUpcoming(data.upcomingSessions || []);
-        setHistory(data.pastSessions || []);
+        const [sessionsRes, reviewsRes] = await Promise.all([
+          fetch("/api/sensei/sessions").then((r) => r.json()),
+          fetch("/api/sensei/reviews").then((r) => r.json()),
+        ]);
+
+        setSessions(sessionsRes.sessions || []);
+        setReviews(reviewsRes.reviews || []);
       } catch (err) {
-        console.error("Dashboard fetch error:", err);
+        console.error("Sensei dashboard error:", err);
       }
     };
 
     if (user?.role === "sensei") fetchData();
   }, [loading, user, router]);
 
-  if (loading || !user) {
-    return (
-      <div className="h-screen flex items-center justify-center text-gray-500 text-lg">
-        Loading Dashboard...
-      </div>
-    );
-  }
+  const pendingSessions = sessions.filter(s => s.status === "pending");
+  const acceptedSessions = sessions.filter(s => s.status === "accepted");
+  const rejectedSessions = sessions.filter(s => s.status === "rejected");
+  const pastSessions = sessions.filter(s => new Date(s.startTime) < new Date());
 
   return (
-    <main className="min-h-screen bg-gray-100 py-10 px-4 md:px-10 text-black">
-      <div className="max-w-5xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">📘 Sensei Dashboard</h1>
-          <p className="text-gray-600 mt-1">
-            Manage session requests and track your mentoring history.
-          </p>
-        </header>
+    <main className="min-h-screen bg-gray-50 px-6 py-10 text-black">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6">📘 Sensei Dashboard</h1>
 
-        <DashboardSection title="🕒 Pending Requests" items={pending}>
-          {(item) => (
-            <>
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-semibold text-lg">{item.gakusei?.name}</p>
-                  <p className="text-sm text-gray-600">{new Date(item.date).toLocaleString()}</p>
-                </div>
-                <div className="flex gap-2">
-                  <ActionButton
-                    label="Accept"
-                    color="green"
-                    onClick={async () => {
-                      await fetch(`/api/sessions/${item._id}/accept`, { method: "PUT" });
-                      window.location.reload();
-                    }}
-                  />
-                  <ActionButton
-                    label="Reject"
-                    color="red"
-                    onClick={async () => {
-                      await fetch(`/api/sessions/${item._id}/reject`, { method: "PUT" });
-                      window.location.reload();
-                    }}
-                  />
-                </div>
+        {/* Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <MetricCard title="Total Sessions" value={sessions.length} />
+          <MetricCard title="Pending" value={pendingSessions.length} />
+          <MetricCard title="Accepted" value={acceptedSessions.length} />
+          <MetricCard title="Rejected" value={rejectedSessions.length} />
+        </div>
+
+        {/* Pending Sessions */}
+        <DashboardSection title="🕓 Pending Session Requests" items={pendingSessions}>
+          {(session) => (
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="font-medium">{session.gakusei?.name}</p>
+                <p className="text-sm text-gray-600">{new Date(session.startTime).toLocaleString()}</p>
               </div>
-            </>
+              <div className="flex gap-2">
+                <SessionActionButton
+                  label="Accept"
+                  color="green"
+                  onClick={async () => {
+                    await fetch(`/api/sensei/session-status?id=${session._id}&action=accept`, { method: "PUT" });
+                    window.location.reload();
+                  }}
+                />
+                <SessionActionButton
+                  label="Reject"
+                  color="red"
+                  onClick={async () => {
+                    await fetch(`/api/sensei/session-status?id=${session._id}&action=reject`, { method: "PUT" });
+                    window.location.reload();
+                  }}
+                />
+              </div>
+            </div>
           )}
         </DashboardSection>
 
-        <DashboardSection title="📅 Upcoming Sessions" items={upcoming}>
-          {(item) => (
-            <>
-              <p className="font-semibold">{item.gakusei?.name}</p>
-              <p className="text-sm text-gray-600">{new Date(item.date).toLocaleString()}</p>
-            </>
+        {/* Session History */}
+        <DashboardSection title="📜 Past Sessions" items={pastSessions.slice(0, 5)}>
+          {(s) => (
+            <div>
+              <p className="font-medium">
+                {s.gakusei?.name} — {new Date(s.startTime).toLocaleString()}
+              </p>
+              <span className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full capitalize">
+                {s.status}
+              </span>
+            </div>
           )}
         </DashboardSection>
 
-        <DashboardSection title="📚 Past Sessions" items={history}>
-          {(item) => (
-            <>
-              <p className="font-semibold">{item.gakusei?.name}</p>
-              <p className="text-sm text-gray-600">{new Date(item.date).toLocaleString()}</p>
-            </>
+        {/* Reviews */}
+        <DashboardSection title="🌟 Reviews Received" items={reviews}>
+          {(r) => (
+            <div>
+              <p className="font-medium">{r.reviewer?.name}</p>
+              <p className="text-sm text-gray-600">Rating: {r.rating}/5</p>
+              <p className="text-sm italic text-gray-700">{r.comment}</p>
+            </div>
           )}
         </DashboardSection>
       </div>
@@ -102,7 +110,15 @@ export default function SenseiDashboard() {
   );
 }
 
-// Reusable Section Component
+function MetricCard({ title, value }: { title: string; value: number }) {
+  return (
+    <div className="bg-white shadow-sm p-5 rounded-xl text-center border border-gray-100">
+      <p className="text-sm text-gray-600">{title}</p>
+      <p className="text-2xl font-bold text-black mt-1">{value}</p>
+    </div>
+  );
+}
+
 function DashboardSection({
   title,
   items,
@@ -113,14 +129,14 @@ function DashboardSection({
   children: (item: any) => JSX.Element;
 }) {
   return (
-    <section className="bg-white rounded-lg p-6 shadow mb-10">
-      <h2 className="text-xl font-semibold mb-4">{title}</h2>
+    <section className="bg-white rounded-xl p-6 shadow-sm mb-10">
+      <h2 className="text-xl font-semibold text-black mb-4">{title}</h2>
       {items.length === 0 ? (
-        <p className="text-sm text-gray-400 italic">No items</p>
+        <p className="text-sm text-gray-500 italic">No records found.</p>
       ) : (
         <ul className="space-y-4">
           {items.map((item) => (
-            <li key={item._id} className="bg-gray-50 p-4 rounded border">
+            <li key={item._id} className="p-4 rounded bg-gray-50">
               {children(item)}
             </li>
           ))}
@@ -130,8 +146,7 @@ function DashboardSection({
   );
 }
 
-// Reusable Action Button
-function ActionButton({
+function SessionActionButton({
   label,
   color,
   onClick,
@@ -140,15 +155,15 @@ function ActionButton({
   color: "green" | "red";
   onClick: () => void;
 }) {
-  const colorClass = {
+  const colorMap = {
     green: "bg-green-600 hover:bg-green-700",
     red: "bg-red-600 hover:bg-red-700",
-  }[color];
+  };
 
   return (
     <button
       onClick={onClick}
-      className={`text-white px-4 py-1.5 rounded-md text-sm font-medium ${colorClass} transition`}
+      className={`text-white px-4 py-1.5 rounded-md text-sm font-medium ${colorMap[color]} transition`}
     >
       {label}
     </button>

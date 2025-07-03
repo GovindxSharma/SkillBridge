@@ -26,20 +26,11 @@ export default function SenseiProfilePage() {
         if (userData?.user) {
           setUser(userData.user);
 
-          // Confirmed session check
-          const sessionRes = await fetch(
-            `/api/sessions/check?userId=${userData.user._id}&senseiId=${id}`
-          );
+          const sessionRes = await fetch(`/api/sessions/check?userId=${userData.user._id}&senseiId=${id}`);
           const sessionData = await sessionRes.json();
           setHasConfirmedSession(sessionData?.confirmed || false);
 
-          // Request status check
-          const statusRes = await fetch("/api/sessions/request?senseiId=${id}", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ senseiId: id }),
-          });
-
+          const statusRes = await fetch(`/api/sessions/request-status?senseiId=${id}`);
           const statusData = await statusRes.json();
           setRequestStatus(statusData.status);
 
@@ -90,13 +81,19 @@ export default function SenseiProfilePage() {
               <span className="inline-block bg-indigo-100 text-indigo-700 text-sm px-4 py-1 rounded-full font-medium shadow">
                 ₹ {sensei.hourlyRate}/hr
               </span>
-              <span className="inline-block bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-semibold">
-                Verified Sensei
-              </span>
+
+              {sensei.isVerified ? (
+                <span className="inline-block bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-semibold">
+                  ✅ Verified Sensei
+                </span>
+              ) : (
+                <span className="inline-block bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full font-semibold">
+                  ❌ Not Verified
+                </span>
+              )}
             </div>
 
             <div className="mt-6 flex gap-4 flex-wrap">
-              {/* Request Button */}
               {user ? (
                 <button
                   disabled={!canRequest}
@@ -128,7 +125,6 @@ export default function SenseiProfilePage() {
                 </Link>
               )}
 
-              {/* Chat Button */}
               <button
                 disabled={!hasConfirmedSession}
                 className={`px-6 py-3 rounded-xl font-medium border ${
@@ -148,7 +144,6 @@ export default function SenseiProfilePage() {
           </div>
         </div>
 
-        {/* Reviews */}
         <div className="mt-12 border-t pt-8">
           <h2 className="text-xl font-bold text-gray-800 mb-4">Reviews</h2>
           <p className="text-sm text-gray-500 italic">
