@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromRequest } from "@/utils/getUserFromRequest";
-import SessionRequestModel from "@/models/SessionRequest";
 import dbConnect from "@/lib/db";
+import { getUserFromRequest } from "@/utils/getUserFromRequest";
+import SessionRequest from "@/models/SessionRequest";
+import Session from "@/models/Session";
+import ChatRoom from "@/models/ChatRoom";
 
 export async function GET(req: NextRequest) {
   await dbConnect();
@@ -12,27 +14,43 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const now = new Date();
-    console.log("🕒 Current Time:", now.toISOString());
+    console.log("📥 Gakusei Dashboard fetch for:", user._id);
 
-    // 🔍 All requests (for stats)
-    const allRequests = await SessionRequestModel.find({ gakusei: user._id });
+    // ✅ All session requests (for stats)
+    const allRequests = await SessionRequest.find({ gakusei: user._id });
 
-    // ✅ Upcoming sessions
-    const upcomingSessions = await SessionRequestModel.find({
+    // 📅 Upcoming Sessions (actual sessions, not session requests)
+    const upcomingSessionsRaw = await Session.find({
       gakusei: user._id,
-      status: "accepted",
-      // startTime: { $gte: now },
-    }).populate("sensei", "name email profileImage");
+      status: "upcoming",
+    })
+      .populate("sensei", "name email profileImage")
+      .lean();
 
-    // ✅ History: completed or rejected
-    const pastSessions = await SessionRequestModel.find({
+    // 🟢 Add chatRoomId to upcomingSessions
+    const upcomingSessions = await Promise.all(
+      upcomingSessionsRaw.map(async (session) => {
+        const chatRoom = await ChatRoom.findOne({
+          session: session.requestId || session.sessionRequest || session._id,
+        });
+
+        return {
+          ...session,
+          chatRoomId: chatRoom?._id?.toString() || null,
+        };
+      })
+    );
+
+    // 📚 Past Sessions (actual sessions)
+    const pastSessions = await Session.find({
       gakusei: user._id,
-      status: { $in: ["completed", "rejected"] },
-    }).populate("sensei", "name email profileImage");
+      status: { $in: ["in-progress", "completed"] },
+    })
+      .populate("sensei", "name email profileImage")
+      .lean();
 
-    // ✅ Requests: pending only
-    const sessionRequests = await SessionRequestModel.find({
+    // ⏳ Session Requests (pending)
+    const sessionRequests = await SessionRequest.find({
       gakusei: user._id,
       status: "pending",
     }).populate("sensei", "name email profileImage");
@@ -48,7 +66,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
-    console.error("❌ Dashboard API Error:", err.message);
+    console.error("❌ Gakusei Dashboard Error:", err.message);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

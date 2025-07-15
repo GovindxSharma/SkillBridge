@@ -14,18 +14,6 @@ export default function GakuseiDashboard() {
   const [requests, setRequests] = useState([]);
   const [reviews, setReviews] = useState([]);
 
-  const formatDate = (date: string | undefined | null) => {
-    if (!date) return "Not scheduled";
-    const parsed = new Date(date);
-    return isNaN(parsed.getTime()) ? "Invalid date" : parsed.toLocaleString();
-  };
-
-  const hasStarted = (date: string) => {
-    const now = new Date();
-    const sessionDate = new Date(date);
-    return sessionDate <= now;
-  };
-
   useEffect(() => {
     if (!loading && (!user || user.role !== "gakusei")) {
       router.push("/auth/login");
@@ -55,9 +43,41 @@ export default function GakuseiDashboard() {
     if (user?.role === "gakusei") fetchData();
   }, [loading, user, router]);
 
+  const formatDate = (date: string | undefined | null) => {
+    if (!date) return "Not scheduled";
+    const parsed = new Date(date);
+    return isNaN(parsed.getTime()) ? "Invalid date" : parsed.toLocaleString();
+  };
+
+  const isSessionLive = (item: any) => {
+    const now = new Date();
+    const sessionTime = new Date(item.startTime);
+    return now >= sessionTime && !item.isCompletedByGakusei && !item.isCompletedBySensei;
+  };
+
+  const joinChat = async (sessionId: string) => {
+    try {
+      const res = await fetch("/api/chat/room", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.roomId) {
+        router.push(`/chat/${data.roomId}`);
+      } else {
+        alert(data.error || "Chat unavailable.");
+      }
+    } catch (err) {
+      console.error("Chat error:", err);
+      alert("Something went wrong");
+    }
+  };
+
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center text-black text-lg">
+      <div className="h-screen flex items-center justify-center text-lg font-medium">
         Loading dashboard...
       </div>
     );
@@ -77,29 +97,14 @@ export default function GakuseiDashboard() {
             render={(item: any) => (
               <>
                 <p className="font-medium">Mentor: {item.sensei?.name || "N/A"}</p>
-                <p className="text-sm text-gray-600">
-                  {formatDate(item.date || item.preferredDate)}
-                </p>
+                <p className="text-sm text-gray-600">{formatDate(item.startTime)}</p>
 
-                {hasStarted(item.date || item.preferredDate) ? (
+                {item.status === "upcoming" && isSessionLive(item) ? (
                   <button
-                    onClick={async () => {
-                      const res = await fetch("/api/chat/room", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ sessionId: item._id }),
-                      });
-
-                      const data = await res.json();
-                      if (res.ok && data.roomId) {
-                        router.push(`/chat/${data.roomId}`);
-                      } else {
-                        alert(data.error || "Chat unavailable.");
-                      }
-                    }}
+                    onClick={() => joinChat(item._id)}
                     className="mt-2 text-sm text-indigo-600 hover:underline"
                   >
-                    Chat
+                    💬 Join Chat
                   </button>
                 ) : (
                   <p className="text-xs text-yellow-600 mt-1">Chat available once session starts</p>
@@ -116,9 +121,7 @@ export default function GakuseiDashboard() {
             render={(item: any) => (
               <>
                 <p className="font-medium">Mentor: {item.sensei?.name || "N/A"}</p>
-                <p className="text-sm text-gray-600">
-                  {formatDate(item.date || item.preferredDate)}
-                </p>
+                <p className="text-sm text-gray-600">{formatDate(item.startTime)}</p>
               </>
             )}
             emptyMessage="No sessions completed yet."
@@ -139,7 +142,7 @@ export default function GakuseiDashboard() {
                 <>
                   <p className="font-medium">Mentor: {item.sensei?.name || "N/A"}</p>
                   <p className="text-sm text-gray-600">
-                    Preferred: {formatDate(item.preferredDate || item.date)}
+                    Preferred: {formatDate(item.preferredDate)}
                   </p>
                   <p className={`text-sm mt-1 font-medium ${color}`}>
                     {item.status?.toUpperCase() || "PENDING"}
